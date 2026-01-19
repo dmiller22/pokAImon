@@ -12,7 +12,6 @@ class OverworldBrain:
         self.last_position = None
 
     def calculate_exploration_reward(self, state):
-        print('Calculating exploration reward...')
         bank = state.get('mapBank')
         map_num = state.get('mapID')
         map_key = f"{bank}-{map_num}"
@@ -22,9 +21,18 @@ class OverworldBrain:
             return 500
         return 0
     
-    def calculate_hp_reward(self, state):
+    def calculate_hp_reward(self, state, just_transitioned_from_battle):
         # 2. SURVIVAL PENALTY (Negative)
         # We want the AI to avoid losing hp to poison damage.
+        reward = 0
+
+        if just_transitioned_from_battle:
+            self.prev_hp = state['currHP']
+            return 0
+
+        if self.prev_hp is None:
+            self.prev_hp = state['currHP']
+            return 0
         if state['currHP'] < self.prev_hp:
             loss = self.prev_hp - state['currHP']
             reward -= (loss/self.prev_max_hp * 10)
@@ -35,8 +43,10 @@ class OverworldBrain:
             reward += (gain/self.prev_max_hp * 5)
             print(f"Healed! Gained {gain} HP. Reward: +{gain/self.prev_max_hp * 5}")
 
+        self.prev_hp = state['currHP']
+        return reward
+
     def calculate_progress_reward(self, state):
-        print('Calculating progress reward...')
         current_max_hp = state.get('maxHP', 0)
         reward = 0
         if self.prev_max_hp == 0:

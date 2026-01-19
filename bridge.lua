@@ -135,6 +135,7 @@ while true do
 
         if (state ~= prev_state) then
             tcp:send(state .. "\n")
+            prev_state = state
 
             -- 3. RECEIVE COMMAND
             local response, err = tcp:receive()

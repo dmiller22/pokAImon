@@ -19,26 +19,25 @@ class BattleBrain:
             return 0  # No previous state to compare with
         if not prev_state or 'enemyHP' not in prev_state or 'enemyHP' not in state:
             return 0
-
-        if (state.get('battleType') == 4):
-            return 0 # return 0 if it's a wild. we may apply something here later once time penalty is implmented
-
-        print('Calculating battle rewards...')
+        
         reward = 0
-
-        # 1. DAMAGE DEALT REWARD (Positive)
-        # We want to reward the AI for making the enemy HP go down.
-        if state['enemyHP'] < prev_state['enemyHP']:
-            damage = prev_state['enemyHP'] - state['enemyHP']
-            reward += (damage/prev_state['enemyMaxHP'] * 15) # High incentive to attack
-            print(f"Direct Hit! Dealt {damage} damage. Reward: +{damage/prev_state['enemyMaxHP'] * 15}")
-
-        # 2. SURVIVAL PENALTY (Negative)
+        
+        # 1. SURVIVAL PENALTY (Negative)
         # We want the AI to avoid getting hit.
         if state['currHP'] < prev_state['currHP']:
             loss = prev_state['currHP'] - state['currHP']
             reward -= (loss/prev_state['maxHP'] * 10)
             print(f"Taken Damage! Lost {loss} HP. Penalty: -{loss/prev_state['maxHP'] * 10}")
+
+        if (state.get('battleType') == 4):
+            return reward # don't reward attacking if it's a wild. we may apply something here later once time penalty is implmented
+
+        # 2. DAMAGE DEALT REWARD (Positive)
+        # We want to reward the AI for making the enemy HP go down.
+        if state['enemyHP'] < prev_state['enemyHP']:
+            damage = prev_state['enemyHP'] - state['enemyHP']
+            reward += (damage/prev_state['enemyMaxHP'] * 15) # High incentive to attack
+            print(f"Direct Hit! Dealt {damage} damage. Reward: +{damage/prev_state['enemyMaxHP'] * 15}")        
 
         # 3. KNOCKOUT BONUS
         # If enemy HP hits 0, that's a huge win.
