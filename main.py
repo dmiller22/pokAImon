@@ -14,6 +14,9 @@ PORT = 65432
 battleLogger = PokeLogger(filename="pokebrain_battle.log", max_bytes=10*1024*1024)
 overworldLogger = PokeLogger(filename="pokebrain_overworld.log", max_bytes=10*1024*1024)
 
+previous_state = None
+total_reward = 0
+
 # Initialize both
 explorer = OverworldBrain()
 battle = BattleBrain()
@@ -107,7 +110,7 @@ def main():
         with conn:
             try:
                 while True:
-                    raw_data = socket.receive()
+                    raw_data = conn.recv(1024).decode('utf-8')
                     state = parse_state(raw_data)
 
                     if (state is None or state == previous_state):
@@ -122,6 +125,11 @@ def main():
                         action = explorer.decide_overworld_action(state)
                         update_brain_overworld(state)
                         
-                    socket.send(action)
+                    conn.sendall(action.encode('utf-8'))
             finally:
                 logger.close()
+                battleLogger.close()
+                overworldLogger.close()
+
+if __name__ == "__main__":
+    main()

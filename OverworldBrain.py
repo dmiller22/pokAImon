@@ -21,6 +21,19 @@ class OverworldBrain:
             print(f"NEW AREA DISCOVERED: {map_key}! +500 Reward.")
             return 500
         return 0
+    
+    def calculate_hp_reward(self, state):
+        # 2. SURVIVAL PENALTY (Negative)
+        # We want the AI to avoid losing hp to poison damage.
+        if state['currHP'] < self.prev_hp:
+            loss = self.prev_hp - state['currHP']
+            reward -= (loss/self.prev_max_hp * 10)
+            print(f"Taken Damage! Lost {loss} HP. Penalty: -{loss/self.prev_max_hp * 10}")
+
+        elif state['currHP'] > self.prev_hp:
+            gain = state['currHP'] - self.prev_hp
+            reward += (gain/self.prev_max_hp * 5)
+            print(f"Healed! Gained {gain} HP. Reward: +{gain/self.prev_max_hp * 5}")
 
     def calculate_progress_reward(self, state):
         print('Calculating progress reward...')
