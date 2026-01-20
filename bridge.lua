@@ -72,6 +72,23 @@ function get_player_moves()
     return moves
 end
 
+function get_controller_input()
+    local pad = joypad.getimmediate()
+    local pressed = {}
+    
+    -- These keys match the 15 keys found by getimmediate()
+    local buttons = {"A", "B", "Up", "Down", "Left", "Right", "Start", "Select", "L", "R"}
+    
+    for _, btn in ipairs(buttons) do
+        if pad[btn] then
+            table.insert(pressed, btn)
+        end
+    end
+    
+    if #pressed == 0 then return "None" end
+    return table.concat(pressed, "+")
+end
+
 local frameCounter = 0
 local throttleLimit = 20 -- Send data to Python every 20 frames
 local lastAction = "None"
@@ -101,6 +118,15 @@ while true do
 
         local gameMode = memory.readbyte(0x02023B44)
 
+        local pokemonLvl = memory.readbyte(0x020242D8) --or 0x02023C0E. 2D8 represents the first pokemon's level in party
+        local poke2lvl = memory.readbyte(0x0202433C) -- second pokemon level
+        --The rest are unverified but based on offsets of prior pokemon levels
+        local poke3lvl = memory.readbyte(0x020243A0)
+        local poke4lvl = memory.readbyte(0x02024404)
+        local poke5lvl = memory.readbyte(0x02024468)
+        local poke6lvl = memory.readbyte(0x020244CC)
+
+
         local playerHP = memory.read_u16_le(0x020242DA)
         local playerMaxHP = memory.read_u16_le(0x020242DC)
 
@@ -110,7 +136,12 @@ while true do
         local enemy2MaxHP = memory.read_u16_le(0x20240E8)
         local enemy3HP = memory.read_u16_le(0x202414A)
         local enemy3MaxHP = memory.read_u16_le(0x202414C)
-        --Still need locations for party members 4-6.
+        local enemy4HP = memory.read_u16_le(0x20241AE)
+        local enemy4MaxHP = memory.read_u16_le(0x20241B0)
+        local enemy5HP = memory.read_u16_le(0x2024212)
+        local enemy5MaxHP = memory.read_u16_le(0x2024214)
+        local enemy6HP = memory.read_u16_le(0x2024276)
+        local enemy6MaxHP = memory.read_u16_le(0x2024278)
 
         -- Determine battle type
         local battleType = memory.readbyte(0x02022B4C)
@@ -128,14 +159,40 @@ while true do
         local moves = get_player_moves()
         local move_str = table.concat(moves, "|")
 
-        -- 2. SEND STATE TO PYTHON
-        local state = string.format("X:%d,Y:%d,InBattle:%d,Dialogue:%d,mapBank:%d,mapID:%d,currHP:%d,maxHP:%d,enemyHP:%d,enemyMaxHP:%d,battleMenu:%d,cursorSlot:%d,battleType:%d,inMenu:%d,needsClick:%d,moves:%s\n", 
-        playerX, playerY, inBattle, dialogActive, mapBank, mapID, playerHP, playerMaxHP, enemyHP, enemyMaxHP, battleMenu, cursorSlot, battleType, inMenu, needsClick,
-        move_str)
+        local move1PP = memory.readbyte(0x02023C08)
+        local move2PP = memory.readbyte(0x02023C09)
+        local move3PP = memory.readbyte(0x02023C0A)
+        local move4PP = memory.readbyte(0x02023C0B)
 
-        if (state ~= prev_state) then
+        local e_type1 = memory.readbyte(0x02023C5D)
+        local e_type2 = memory.readbyte(0x02023C5E)
+
+        local currentInput = get_controller_input()
+
+        -- 2. SEND STATE TO PYTHON
+        local state = string.format("X:%d,Y:%d,InBattle:%d,Dialogue:%d,mapBank:%d,mapID:%d,currHP:%d,maxHP:%d,enemyHP:%d,enemyMaxHP:%d,enemy2HP:%d,enemy2MaxHP:%d,enemy3HP:%d,enemy3MaxHP:%d,enemy4HP:%d,enemy4MaxHP:%d,enemy5HP:%d,enemy5MaxHP:%d,enemy6HP:%d,enemy6MaxHP:%d,battleMenu:%d,cursorSlot:%d,battleType:%d,inMenu:%d,needsClick:%d,moves:%s,move1PP:%d,move2PP:%d,move3PP:%d,move4PP:%d,e_type1:%d,e_type2:%d,pokemonLvl:%d,poke2lvl:%d,poke3lvl:%d,poke4lvl:%d,poke5lvl:%d,poke6lvl:%d,currentInput:%s\n", 
+        playerX, playerY, inBattle, dialogActive, mapBank, mapID, playerHP, playerMaxHP, enemyHP, enemyMaxHP, enemy2HP, enemy2MaxHP, enemy3HP, enemy3MaxHP, enemy4HP, enemy4MaxHP, enemy5HP, enemy5MaxHP, enemy6HP, enemy6MaxHP,
+        battleMenu, cursorSlot, battleType, inMenu, needsClick,
+        move_str,
+        move1PP,
+        move2PP,
+        move3PP,
+        move4PP,
+        e_type1,
+        e_type2,
+        pokemonLvl,
+        poke2lvl,
+        poke3lvl,
+        poke4lvl,
+        poke5lvl,
+        poke6lvl,
+        currentInput)
+
+        if (state ~= prev_state and currentInput ~= "None") then
             tcp:send(state .. "\n")
             prev_state = state
+
+            
 
             -- 3. RECEIVE COMMAND
             local response, err = tcp:receive()

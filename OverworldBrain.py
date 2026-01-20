@@ -7,6 +7,7 @@ class OverworldBrain:
         self.visited_maps = set()
         self.prev_hp = None
         self.prev_max_hp = 0
+        self.prev_lvl_total = 0
         self.map_buffer = []
         self.current_confirmed_map = "3-1"
         self.last_position = None
@@ -44,18 +45,27 @@ class OverworldBrain:
             print(f"Healed! Gained {gain} HP. Reward: +{gain/self.prev_max_hp * 5}")
 
         self.prev_hp = state['currHP']
+        self.prev_max_hp = state['maxHP']
         return reward
 
+    # 3. PROGRESS REWARD (Positive) calculated as total level increase across party
     def calculate_progress_reward(self, state):
-        current_max_hp = state.get('maxHP', 0)
+        current_poke1lvl = state.get('pokemonLvl', 0)
+        current_poke2lvl = state.get('poke2lvl', 0)
+        current_poke3lvl = state.get('poke3lvl', 0)
+        current_poke4lvl = state.get('poke4lvl', 0)
+        current_poke5lvl = state.get('poke5lvl', 0)
+        current_poke6lvl = state.get('poke6lvl', 0)
+        current_lvl_total = current_poke1lvl + current_poke2lvl + current_poke3lvl + current_poke4lvl + current_poke5lvl + current_poke6lvl
+
         reward = 0
-        if self.prev_max_hp == 0:
-            self.prev_max_hp = current_max_hp
+        if self.prev_lvl_total == 0:
+            self.prev_lvl_total = current_lvl_total
             return 0
-        if current_max_hp > self.prev_max_hp:
-            reward = 5000
-            print(f"LEVEL UP DETECTED! Max HP: {self.prev_max_hp} -> {current_max_hp}. Reward: {reward}")
-        self.prev_max_hp = current_max_hp
+        if current_lvl_total > self.prev_lvl_total:
+            reward = 1000*(current_lvl_total - self.prev_lvl_total)
+            print(f"LEVEL UP DETECTED! Level: {self.prev_lvl_total} -> {current_lvl_total}. Reward: {reward}")
+        self.prev_lvl_total = current_lvl_total
         return reward
 
     def decide_overworld_action(self, state):
