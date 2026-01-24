@@ -93,6 +93,12 @@ local frameCounter = 0
 local throttleLimit = 20 -- Send data to Python every 20 frames
 local lastAction = "None"
 local prev_state = ""
+local frameCounter = 0
+local PING_INTERVAL = 10
+local last_action = "None"
+local move_hold = 40    -- How long to hold the button
+local change_delay = 10 -- EXTRA frames to wait if switching directions
+local last_direction = "None"
 
 while true do
     frameCounter = frameCounter + 1
@@ -169,10 +175,28 @@ while true do
 
         local currentInput = get_controller_input()
 
+        -- 1. Get the dynamic base address from the pointer
+        local saveBlockBase = memory.read_u32_le(0x03005008)
+
+        -- 2. Add your offset (FE4)
+        local finalAddress = saveBlockBase + 0xFE4
+
+        local gMapHeader = 0x02036DFC
+        local mapLocationAddress = gMapHeader + 0x12
+
+        -- 3. Read the badge data from that location
+        local badgeData = memory.readbyte(finalAddress)
+        local mapLocationId = memory.readbyte(mapLocationAddress)
+
+        local partyFirstPokemonID = memory.readbyte(0x02024284)
+        local userActivePokemon = memory.readbyte(0x02023BE4)
+
         -- 2. SEND STATE TO PYTHON
-        local state = string.format("X:%d,Y:%d,InBattle:%d,Dialogue:%d,mapBank:%d,mapID:%d,currHP:%d,maxHP:%d,enemyHP:%d,enemyMaxHP:%d,enemy2HP:%d,enemy2MaxHP:%d,enemy3HP:%d,enemy3MaxHP:%d,enemy4HP:%d,enemy4MaxHP:%d,enemy5HP:%d,enemy5MaxHP:%d,enemy6HP:%d,enemy6MaxHP:%d,battleMenu:%d,cursorSlot:%d,battleType:%d,inMenu:%d,needsClick:%d,moves:%s,move1PP:%d,move2PP:%d,move3PP:%d,move4PP:%d,e_type1:%d,e_type2:%d,pokemonLvl:%d,poke2lvl:%d,poke3lvl:%d,poke4lvl:%d,poke5lvl:%d,poke6lvl:%d,currentInput:%s\n", 
-        playerX, playerY, inBattle, dialogActive, mapBank, mapID, playerHP, playerMaxHP, enemyHP, enemyMaxHP, enemy2HP, enemy2MaxHP, enemy3HP, enemy3MaxHP, enemy4HP, enemy4MaxHP, enemy5HP, enemy5MaxHP, enemy6HP, enemy6MaxHP,
+        local state = string.format("frameCounter:%d,X:%d,Y:%d,InBattle:%d,Dialogue:%d,mapBank:%d,mapID:%d,currHP:%d,maxHP:%d,enemyHP:%d,enemyMaxHP:%d,enemy2HP:%d,enemy2MaxHP:%d,enemy3HP:%d,enemy3MaxHP:%d,enemy4HP:%d,enemy4MaxHP:%d,enemy5HP:%d,enemy5MaxHP:%d,enemy6HP:%d,enemy6MaxHP:%d,battleMenu:%d,cursorSlot:%d,battleType:%d,inMenu:%d,needsClick:%d,partyFirstPokemonID:%d,userActivePokemon:%d,moves:%s,move1PP:%d,move2PP:%d,move3PP:%d,move4PP:%d,e_type1:%d,e_type2:%d,pokemonLvl:%s,poke2lvl:%s,poke3lvl:%s,poke4lvl:%s,poke5lvl:%s,poke6lvl:%s,badgeData:%d,currentInput:%s,mapLocationId:%d,last_direction:%s", 
+        frameCounter, playerX, playerY, inBattle, dialogActive, mapBank, mapID, playerHP, playerMaxHP, enemyHP, enemyMaxHP, enemy2HP, enemy2MaxHP, enemy3HP, enemy3MaxHP, enemy4HP, enemy4MaxHP, enemy5HP, enemy5MaxHP, enemy6HP, enemy6MaxHP,
         battleMenu, cursorSlot, battleType, inMenu, needsClick,
+        partyFirstPokemonID,
+        userActivePokemon,
         move_str,
         move1PP,
         move2PP,
@@ -186,40 +210,80 @@ while true do
         poke4lvl,
         poke5lvl,
         poke6lvl,
-        currentInput)
-
-        if (state ~= prev_state and currentInput ~= "None") then
+        badgeData,
+        currentInput,
+        mapLocationId,
+        last_direction)
+        
+        -- ignore changes in frameCounter when comparing state
+        local state_noframe = state:gsub("frameCounter:%d+,", "")
+        local prev_state_noframe = prev_state:gsub("frameCounter:%d+,", "")
+        
+        if  frameCounter % PING_INTERVAL == 0 then --(state_noframe ~= prev_state_noframe) then --and currentInput ~= "None"
             tcp:send(state .. "\n")
             prev_state = state
-
             
-
+            if frameCounter >= 3000 then
+            frameCounter = 0
+            else
+                frameCounter = frameCounter + 1
+            end
+            
             -- 3. RECEIVE COMMAND
+            tcp:settimeout(0.5) -- 500 ms timeout
             local response, err = tcp:receive()
             if response then
-                --console.log("Action from Brain: " .. response)
                 local clean_command = response:gsub("%s+", "")
                 if clean_command ~= "None" then
+
+                    local hold_frames = 16 -- Default for movement
+                    if clean_command == "A" or clean_command == "B" or clean_command == "Start" then
+                        hold_frames = 4 -- Just a quick tap for menus/dialogue
+                    end
+
+                    if clean_command == "Up" or clean_command == "Down" or clean_command == "Left" or clean_command == "Right" then
+                        last_direction = clean_command
+                    end
+
                     -- 1. Press the button
-                    --joypad.set({ [clean_command] = true })
-                    -- 2. Hold it for 3 frames (GBA standard for guaranteed registration)
-                    for i = 1, 3 do
+                    joypad.set({ [clean_command] = true })
+                    for i = 1, move_hold do
                         emu.frameadvance()
                     end
+
                     -- 3. Release the button
-                    --joypad.set({ [clean_command] = false })
+                    joypad.set({ [clean_command] = false })
                     -- 4. Force a "Release" frame so the game sees the button is up
-                    emu.frameadvance()
+                    for i = 1, 2 do -- 2 frames of "neutral" helps the game buffer the next input
+                        emu.frameadvance()
+                    end
+
+                    -- 4. If we changed direction, wait for the "Turning Animation" to finish
+                    if clean_command ~= last_action then
+                        for i = 1, change_delay do
+                            emu.frameadvance()
+                        end
+                    end
+                    last_action = clean_command
                 else
-                    -- If the AI says "None", just wait 1 frame
-                    emu.frameadvance()
+                    -- If the AI says "None", just wait 5 frames
+                    for i = 1, PING_INTERVAL do
+                        emu.frameadvance()
+                    end
+                    last_action = "None"
                 end
             else
                 --console.log("Waiting for brain... Error: " .. tostring(err))
-                emu.frameadvance() -- Don't freeze the emulator if Python crashes
+                for i = 1, 5 do
+                    emu.frameadvance()
+                    last_action = "None"
+                end -- Don't freeze the emulator if Python crashes
             end
         else 
-            emu.frameadvance() --advance frame if the state is the exact same as before
+            for i = 1, 5 do
+                emu.frameadvance()
+                last_action = "None"
+            end --advance frame if the state is the exact same as before
         end
     end
 end

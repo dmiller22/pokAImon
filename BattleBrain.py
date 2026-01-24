@@ -52,46 +52,6 @@ class BattleBrain:
 
         return reward
 
-    def get_battle_input(self, state_data):
-        # # 1. Cooldown logic
-        # self.battle_frame_counter += 1
-        # if self.battle_frame_counter < 5: # Increased to 40 for stability
-        #     return "None"
-
-        self.battle_frame_counter = 0
-
-        menu = state_data.get('battleMenu')
-        cursor = state_data.get('cursorSlot')
-
-        # CASE: Main Battle Menu (Fight/Bag/Pokemon/Run)
-        if menu == 1:
-            self.target_move_slot = None
-            print("At Main Menu: Pressing A to enter Fight")
-            return "A"
-
-        # CASE: Move Selection (Confirmed as 2 by your logs)
-        elif menu == 2:
-            if self.target_move_slot is None:
-                self.target_move_slot = random.randint(0, 3)
-                print(f"New Turn: Targeting Move Slot {self.target_move_slot}")
-
-            if cursor == self.target_move_slot:
-                print(f"Confirmed Slot {self.target_move_slot}! Pressing A.")
-                # self.target_move_slot = None # Keep the target until menu changes
-                return "A"
-            else:
-                action = self.navigate_to_target(cursor, self.target_move_slot)
-                print(f"Navigating: {action} (Current: {cursor}, Target: {self.target_move_slot})")
-                return action
-
-        elif menu == 4 or menu == 0 or menu == 5:
-            self.target_move_slot = None
-            return "A"  # Continue through dialogue or results
-
-        # IMPORTANT: Do not return "A" here. Return "None".
-        # This prevents mashing during transitions or text boxes.
-        return "None"
-
     def navigate_to_target(self, current, target):
         # Grid: 0=TL, 1=TR, 2=BL, 3=BR
         if current == 0: return "Right" if target in [1, 3] else "Down"
