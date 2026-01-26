@@ -30,12 +30,12 @@ battle_model = PokeBrain(input_size=11, num_actions=9)
 
 # Hyperparameters for RL
 GAMMA = 1  # Discount factor: how much we value future rewards vs immediate ones
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 optimizer_overworld = torch.optim.Adam(overworld_model.parameters(), lr=0.0005)
 
 # Hyperparameters for RL
 GAMMA_BATTLE = 1  # Discount factor: how much we value future rewards vs immediate ones
-BATCH_SIZE_BATTLE = 32
+BATCH_SIZE_BATTLE = 16
 optimizer_battle = torch.optim.Adam(battle_model.parameters(), lr=0.0005)
 
 # ONLY load if the file exists. 
@@ -89,9 +89,9 @@ EPSILON_BATTLE = 0.25 # 25% chance to do something random in battle
 import numpy as np
 
 # Global settings for exploration
-epsilon = 1.0        # Start high (if starting from scratch) or low (if pre-trained)
-epsilon_min = 1.0   # Always keep 10% randomness to prevent getting stuck
-epsilon_decay = 1.0 # No decay per action taken
+epsilon = 1.00        # Start high (if starting from scratch) or low (if pre-trained)
+epsilon_min = 1.00   # Always keep 10% randomness to prevent getting stuck
+epsilon_decay = 1.000 # decay per action taken
 
 def get_action_epsilon_greedy(model, state_vector, num_actions=9):
     global epsilon
