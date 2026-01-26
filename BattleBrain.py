@@ -15,40 +15,39 @@ class BattleBrain:
         self.target_move_slot = None
 
     def calculate_battle_rewards(self, state, prev_state):
-        if (prev_state is None):
-            return 0  # No previous state to compare with
-        if not prev_state or 'enemyHP' not in prev_state or 'enemyHP' not in state:
-            return 0
+        if prev_state is None or 'currHP' not in state:
+            return 0 
         
         reward = 0
         
-        # 1. SURVIVAL PENALTY (Negative)
-        # We want the AI to avoid getting hit.
-        if state['currHP'] < prev_state['currHP']:
-            loss = prev_state['currHP'] - state['currHP']
-            reward -= (loss/prev_state['maxHP'] * 10)
-            print(f"Taken Damage! Lost {loss} HP. Penalty: -{loss/prev_state['maxHP'] * 10}")
+        # 1. SURVIVAL PENALTY
+        curr_hp = state.get('currHP', 0)
+        prev_hp = prev_state.get('currHP', 0)
+        if curr_hp < prev_hp:
+            loss = prev_hp - curr_hp
+            reward -= (loss / max(1, prev_state.get('maxHP', 20))) * 10
+            print(f"Player took {loss} damage.")
 
-        if (state.get('battleType') == 4):
-            return reward # don't reward attacking if it's a wild. we may apply something here later once time penalty is implmented
+        # 2. ENEMY PROGRESSION
+        for i in range(1, 7):
+            hp_key = 'enemyHP' if i == 1 else f'enemy{i}HP'
+            max_hp_key = 'enemyMaxHP' if i == 1 else f'enemy{i}MaxHP'
+            
+            e_curr = state.get(hp_key, 0)
+            e_prev = prev_state.get(hp_key, 0)
+            e_max = prev_state.get(max_hp_key, 1)
 
-        # 2. DAMAGE DEALT REWARD (Positive)
-        # We want to reward the AI for making the enemy HP go down.
-        if state['enemyHP'] < prev_state['enemyHP']:
-            damage = prev_state['enemyHP'] - state['enemyHP']
-            reward += (damage/prev_state['enemyMaxHP'] * 15) # High incentive to attack
-            print(f"Direct Hit! Dealt {damage} damage. Reward: +{damage/prev_state['enemyMaxHP'] * 15}")        
+            # CHECK A: DAMAGE (Apply this if HP dropped at all)
+            if e_curr < e_prev:
+                damage = e_prev - e_curr
+                dmg_reward = (damage / e_max) * 150
+                reward += dmg_reward
+                print(f"Dealt {damage} damage to Enemy {i}. Reward: +{dmg_reward}")
 
-        # 3. KNOCKOUT BONUS
-        # If enemy HP hits 0, that's a huge win.
-        if state['enemyHP'] == 0 and prev_state['enemyHP'] > 0:
-            reward += 1000
-            print("Enemy Fainted! Massive Bonus: +1000")
-
-        # # 4. LEVEL UP (MAX HP PROXY)
-        # if state['maxHP'] > prev_state['maxHP'] and prev_state['maxHP'] > 0:
-        #     reward += 5000
-        #     print("LEVEL UP! Progress Bonus: +5000")
+            # CHECK B: KNOCKOUT (Independent check)
+            if e_prev > 0 and e_curr == 0:
+                reward += 250
+                print(f"!!! KNOCKOUT DETECTED !!! +250")
 
         return reward
 

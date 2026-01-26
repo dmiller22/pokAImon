@@ -22,41 +22,41 @@ replay_buffer = ExperienceReplay(capacity=10000)
 replay_buffer_battle = ExperienceReplay(capacity=5000)
 
 battleLogger = PokeLogger(filename="pokebrain_battle.log", max_bytes=10*1024*1024)
-overworldLogger = PokeLogger(filename="pokebrain_overworld.log", max_bytes=10*1024*1024)
+#overworldLogger = PokeLogger(filename="pokebrain_overworld.log", max_bytes=10*1024*1024)
 
 # Create the model structure
-overworld_model = PokeBrain(input_size=9, num_actions=9)
-battle_model = PokeBrain(input_size=11, num_actions=9)
+#overworld_model = PokeBrain(input_size=9, num_actions=9)
+battle_model = PokeBrain(input_size=17, num_actions=9)
 
 # Hyperparameters for RL
 GAMMA = 1  # Discount factor: how much we value future rewards vs immediate ones
-BATCH_SIZE = 32
-optimizer_overworld = torch.optim.Adam(overworld_model.parameters(), lr=0.0005)
+BATCH_SIZE = 128
+#optimizer_overworld = torch.optim.Adam(overworld_model.parameters(), lr=0.0005)
 
 # Hyperparameters for RL
 GAMMA_BATTLE = 1  # Discount factor: how much we value future rewards vs immediate ones
-BATCH_SIZE_BATTLE = 32
+BATCH_SIZE_BATTLE = 16
 optimizer_battle = torch.optim.Adam(battle_model.parameters(), lr=0.0005)
 
 # ONLY load if the file exists. 
 # This way, it uses your "Evolved" model from yesterday.
-if os.path.exists("overworld_model_evolved_placeholder.pth"):
-    overworld_model.load_state_dict(torch.load("overworld_model_evolved.pth"))
-    print("Loaded evolved brain.")
-elif os.path.exists("overworld_model.pth"):
-    checkpoint_overworld = torch.load("overworld_model.pth")
-    if isinstance(checkpoint_overworld, dict) and "model_state_dict" in checkpoint_overworld:
-        overworld_model.load_state_dict(checkpoint_overworld["model_state_dict"])
-        # OPTIONAL: Resume your Epsilon and Optimizer too!
-        optimizer_overworld.load_state_dict(checkpoint_overworld["optimizer_state_dict"])
-        epsilon = checkpoint_overworld.get("epsilon", 0.1)     
-        print("Resumed from advanced checkpoint.")
+#if os.path.exists("overworld_model_evolved_placeholder.pth"):
+#    overworld_model.load_state_dict(torch.load("overworld_model_evolved.pth"))
+#    print("Loaded evolved brain.")
+#elif os.path.exists("overworld_model.pth"):
+#    checkpoint_overworld = torch.load("overworld_model.pth")
+#    if isinstance(checkpoint_overworld, dict) and "model_state_dict" in checkpoint_overworld:
+#        overworld_model.load_state_dict(checkpoint_overworld["model_state_dict"])
+#        # OPTIONAL: Resume your Epsilon and Optimizer too!
+#        optimizer_overworld.load_state_dict(checkpoint_overworld["optimizer_state_dict"])
+#        epsilon = checkpoint_overworld.get("epsilon", 0.1)     
+#        print("Resumed from advanced checkpoint.")
 
-    else:
-        overworld_model.load_state_dict(torch.load("overworld_model.pth"))
-        print("Loaded initial overworld brain.")
+#    else:
+#        overworld_model.load_state_dict(torch.load("overworld_model.pth"))
+#        print("Loaded initial overworld brain.")
 
-    overworld_model.train()
+#    overworld_model.train()
 
 if os.path.exists("battle_model_evolved_placeholder.pth"):
     battle_model.load_state_dict(torch.load("battle_model_evolved.pth"))
@@ -76,21 +76,22 @@ elif os.path.exists("battle_model.pth"):
 # battle_model.eval()
 
 previous_state = None
+prev_state_battle = None
 total_reward = 0
 
 # Initialize both
-explorer = OverworldBrain()
+#explorer = OverworldBrain()
 battle = BattleBrain()
 
 ACTION_MAP = {0: "None", 1: "Up", 2: "Down", 3: "Left", 4: "Right", 5: "A", 6: "B", 7: "Start", 8: "Select"}
-EPSILON_OVERWORLD = 1 # 100% chance to do something random
-EPSILON_BATTLE = 0.25 # 25% chance to do something random in battle
+#EPSILON_OVERWORLD = 1 # 100% chance to do something random
+#EPSILON_BATTLE = 0.25 # 25% chance to do something random in battle
 
 import numpy as np
 
 # Global settings for exploration
-epsilon = 1.0        # Start high (if starting from scratch) or low (if pre-trained)
-epsilon_min = 1.0   # Always keep 10% randomness to prevent getting stuck
+epsilon = 0.80        # Start high (if starting from scratch) or low (if pre-trained)
+epsilon_min = 0.80   # Always keep 10% randomness to prevent getting stuck
 epsilon_decay = 1.0 # No decay per action taken
 
 def get_action_epsilon_greedy(model, state_vector, num_actions=9):
@@ -113,32 +114,32 @@ def get_action_epsilon_greedy(model, state_vector, num_actions=9):
         
     return action_index
 
-def train_step_overworld(model, replay_buffer):
-    if len(replay_buffer) < BATCH_SIZE:
-        return # Not enough memories to learn yet
+#def train_step_overworld(model, replay_buffer):
+#    if len(replay_buffer) < BATCH_SIZE:
+#        return # Not enough memories to learn yet
 
     # 1. Sample a random batch of memories
-    states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
+#    states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
 
     # 2. Get current Q-values from the model
     # (What the AI *thought* would happen)
-    current_q_values = model(states).gather(1, actions.unsqueeze(1))
+   # current_q_values = model(states).gather(1, actions.unsqueeze(1))
 
     # 3. Get the maximum Q-value for the NEXT state
     # (The AI's best guess for the future)
-    with torch.no_grad():
-        next_q_values = model(next_states).max(1)[0]
-        expected_q_values = rewards + (GAMMA * next_q_values)
+    #with torch.no_grad():
+    #    next_q_values = model(next_states).max(1)[0]
+    #    expected_q_values = rewards + (GAMMA * next_q_values)
 
     # 4. Compute Loss (Difference between thought and reality)
-    loss = F.smooth_l1_loss(current_q_values.squeeze(), expected_q_values)
+    #loss = F.smooth_l1_loss(current_q_values.squeeze(), expected_q_values)
 
     # 5. Optimize the model
-    optimizer_overworld.zero_grad()
-    loss.backward()
-    optimizer_overworld.step()
+    #optimizer_overworld.zero_grad()
+    #loss.backward()
+    #optimizer_overworld.step()
 
-    return loss.item()
+    #return loss.item()
 
 def train_step_battle(model, replay_buffer_battle):
     if len(replay_buffer_battle) < BATCH_SIZE_BATTLE:
@@ -176,14 +177,22 @@ def get_action(state):
 
         # Use Battle Normalization from earlier
         # Use this for vector in data_processing AND vec in main.py
+        move_id_max = MAX_MOVE_ID if MAX_MOVE_ID else 163  # Default to typical Pokémon move count
+        moves = state.get('moves', [0, 0, 0, 0])
         vec = [
             state.get('currHP', 0) / 100,
             state.get('maxHP', 0) / 100,
             state.get('enemyHP', 0) / 100,
             state.get('enemyMaxHP', 0) / 100,
+            state.get('e_type1', 0) / 17,
+            state.get('e_type2', 0) / 17,
             state.get('userActivePokemon', 0) / 500, # Use same divisor as training (500)
             state.get('battleMenu', 0) / 10,
             state.get('cursorSlot', 0) / 4,
+            moves[0] / move_id_max if len(moves) > 0 else 0,
+            moves[1] / move_id_max if len(moves) > 1 else 0,
+            moves[2] / move_id_max if len(moves) > 2 else 0,
+            moves[3] / move_id_max if len(moves) > 3 else 0,
             state.get('move1PP', 0) / 40,
             state.get('move2PP', 0) / 40,
             state.get('move3PP', 0) / 40,
@@ -194,56 +203,62 @@ def get_action(state):
             frame_reward = state.get('frame_reward', 0)
             replay_buffer_battle.push(prev_state_vec_battle, prev_action_battle, frame_reward, vec)
     else:
-        # Use Overworld Normalization
-        vec = [
-            state.get('X', 0) / 255,
-            state.get('Y', 0) / 255,
-            state.get('mapLocationId', 0) / 255,
-            state.get('currHP', 0) / 100,
-            state.get('maxHP', 0) / 100,
-            state.get('inMenu', 0),
-            state.get('needsClick', 0),
-            state.get('Dialogue', 0),
-            state.get('badgeData', 0) / 8
-        ]
-        model = overworld_model
-        if prev_state_vec_overworld is not None:
-            frame_reward = state.get('frame_reward', 0)
-            replay_buffer.push(prev_state_vec_overworld, prev_action_overworld, frame_reward, vec)
+        model = None
+    #    # Use Overworld Normalization
+    #    vec = [
+    #        state.get('X', 0) / 255,
+    #        state.get('Y', 0) / 255,
+    #        state.get('mapLocationId', 0) / 255,
+    #        state.get('currHP', 0) / 100,
+    #        state.get('maxHP', 0) / 100,
+    #        state.get('inMenu', 0),
+    #        state.get('needsClick', 0),
+    #        state.get('Dialogue', 0),
+    #        state.get('badgeData', 0) / 8
+    #    ]
+    #    model = overworld_model
+    #    if prev_state_vec_overworld is not None:
+    #        frame_reward = state.get('frame_reward', 0)
+    #        replay_buffer.push(prev_state_vec_overworld, prev_action_overworld, frame_reward, vec)
 
     # 4. Decide the NEXT action (using epsilon-greedy for exploration)
-    action_index = get_action_epsilon_greedy(model, vec, num_actions=9)
-    action_name = ACTION_MAP[action_index]
+    if model is not None:
+        action_index = get_action_epsilon_greedy(model, vec, num_actions=9)
+        action_name = ACTION_MAP[action_index]
+    else:
+        action_name = "None"
 
+    #if not is_battle:
+	#    action_name = "None"
     if is_battle:
         prev_state_vec_battle = vec
         prev_state_model_battle = state
         prev_action_battle = action_index
-    else:
-        prev_state_vec_overworld = vec
-        prev_state_model_overworld = state
-        prev_action_overworld = action_index
+    # else:
+    #     prev_state_vec_overworld = vec
+    #     prev_state_model_overworld = state
+    #     prev_action_overworld = action_index
 
-    if len(replay_buffer) >= 8000 and not is_battle:
-        # Sample a batch and perform a training step
-        train_step_overworld(model, replay_buffer)
-    elif len(replay_buffer_battle) >= 2000 and not is_battle:
-        train_step_battle(model, replay_buffer_battle)
+    #if len(replay_buffer) >= 8000 and not is_battle:
+    #    # Sample a batch and perform a training step
+    #    train_step_overworld(model, replay_buffer)
+    if len(replay_buffer_battle) >= 2000 and not is_battle:
+        train_step_battle(battle_model, replay_buffer_battle)
 
     if state['frameCounter'] % 2900 == 0:
-        checkpoint = {
-            'model_state_dict': overworld_model.state_dict(),
-            'optimizer_state_dict': optimizer_overworld.state_dict(),
-            'epsilon': epsilon, # Save its current curiosity level!
-            'frame_count': state['frameCounter']
-        }
+    #    checkpoint = {
+    #        'model_state_dict': overworld_model.state_dict(),
+    #        'optimizer_state_dict': optimizer_overworld.state_dict(),
+    #        'epsilon': epsilon, # Save its current curiosity level!
+    #        'frame_count': state['frameCounter']
+    #    }
         checkpoint_battle = {
             'model_state_dict': battle_model.state_dict(),
             'optimizer_state_dict': optimizer_battle.state_dict(),
             'epsilon': epsilon, # Save its current curiosity level!
             'frame_count': state['frameCounter']
         }
-        torch.save(checkpoint, "overworld_model_evolved.pth")
+    #    torch.save(checkpoint, "overworld_model_evolved.pth")
         torch.save(checkpoint_battle, "battle_model_evolved.pth")
         print("Checkpoint saved: The brain is growing!")
 
@@ -315,10 +330,10 @@ MAX_MOVE_ID = load_max_move_id()
 
 def update_brain_battle(state):
     global total_reward
-    global previous_state
+    global prev_state_battle
     previous_reward = total_reward    
 
-    battleRewards = battle.calculate_battle_rewards(state, previous_state)
+    battleRewards = battle.calculate_battle_rewards(state, prev_state_battle)
     if battleRewards != 0:
         total_reward += battleRewards  # Your existing logic
         battleRewards = 0  # Reset after applying
@@ -326,8 +341,8 @@ def update_brain_battle(state):
     if (state.get('frameCounter') % 1000) == 0:
         print(f'frameCounter: {state.get("frameCounter")}, total_reward: {total_reward}')
     if (state.get('frameCounter') is not None and state.get('frameCounter') >= 3000):
-        total_reward -= 15  # Time penalty to encourage faster gameplay
-        print("Time Penalty Applied: -15")
+        total_reward -= 25  # Time penalty to encourage faster gameplay
+        print("Time Penalty Applied: -25")
     
     # 3. Decide next action based on rewards
     # (This is where you'd pass 'reward' to your RL model)
@@ -335,9 +350,10 @@ def update_brain_battle(state):
         print(f"Frame Reward: {total_reward - previous_reward} | Total Reward: {total_reward}")
 
     # Log a filtered battle record to reduce noise
-    battle_record = filtered_battle_record(state, previous_state)
+    battle_record = filtered_battle_record(state, prev_state_battle)
     battleLogger.log(battle_record, total_reward, total_reward - previous_reward)
 
+    prev_state_battle = state
     previous_state = state
 
 def update_brain_overworld(state):
@@ -348,18 +364,18 @@ def update_brain_overworld(state):
 
     battleToOverworldFrame = state['InBattle'] == 0 and previous_state and previous_state['InBattle'] == 1
     # 2. Calculate Rewards
-    explorationReward = explorer.calculate_exploration_reward(state)
+    explorationReward = 0#explorer.calculate_exploration_reward(state)
     if explorationReward > 0:
         total_reward += explorationReward  # Exploration bonus
         explorationReward = 0  # Reset after applying
 
-    progressReward = explorer.calculate_progress_reward(state)
+    progressReward = 0#explorer.calculate_progress_reward(state)
     if progressReward != 0:
         total_reward += progressReward  # Your existing logic
         progressReward = 0  # Reset after applying
 
     # 3. HP Reward (only if not just transitioned from battle)
-    hpReward = explorer.calculate_hp_reward(state, battleToOverworldFrame)
+    hpReward = 0#explorer.calculate_hp_reward(state, battleToOverworldFrame)
     if hpReward != 0:
         total_reward += hpReward  # Your existing logic
         hpReward = 0  # Reset after applying
@@ -381,7 +397,7 @@ def update_brain_overworld(state):
         print(f"Frame Reward: {total_reward - previous_reward} | Total Reward: {total_reward}")
     # Log a filtered overworld record to reduce noise
     overworld_record = filtered_overworld_record(state, previous_state)
-    overworldLogger.log(overworld_record, total_reward, total_reward - previous_reward)
+    #overworldLogger.log(overworld_record, total_reward, total_reward - previous_reward)
 
     previous_state = state
 
@@ -523,7 +539,7 @@ def main():
         finally:
             logger.close()
             battleLogger.close()
-            overworldLogger.close()
+            #overworldLogger.close()
 
 if __name__ == "__main__":
     main()
